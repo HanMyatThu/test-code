@@ -79,11 +79,7 @@ function submitFirebase(t) {
 }
 
 function handleMotionEvent(ev) {
-  if (ev === null) {
-    motionX.push(0);
-    motionY.push(0);
-    motionZ.push(0);
-  }
+  console.log("here");
   ev.acceleration.x === null
     ? motionX.push(0)
     : motionX.push(ev.acceleration.x);
@@ -107,6 +103,7 @@ window.fn.startAcq = function () {
       (pos) => {
         // Motion trackinga
         if (window.DeviceMotionEvent) {
+          console.log("yes");
           window.addEventListener("devicemotion", handleMotionEvent, true);
         }
 
