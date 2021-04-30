@@ -7,7 +7,7 @@ const app = express();
 const port = process.env.port || 3000;
 app.use(cors());
 
-app.get("/", (req, res) => {
+app.get("/test", (req, res) => {
   res.render("index");
 });
 
