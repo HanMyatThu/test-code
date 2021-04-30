@@ -1,0 +1,35 @@
+doctype html
+html
+  head
+    meta(http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate')
+    meta(http-equiv='Pragma' content='no-cache')
+    meta(http-equiv='Expires' content='0')
+    link(rel='stylesheet' href='https://unpkg.com/onsenui/css/onsenui.css')
+    link(rel='stylesheet' href='https://unpkg.com/onsenui/css/onsen-css-components.min.css')
+    script(src='https://unpkg.com/onsenui/js/onsenui.min.js')
+    script(src='/index.js')
+  body
+    ons-navigator#appNavigator(swipeable='' page='mainPage.html')
+    template(id='mainPage.html')
+      ons-page#mainPage
+        ons-toolbar
+          .center Smartphone Probe
+          .right
+            ons-toolbar-button#online-flag(onclick='fn.toggleOnline()')
+              | ONLINE
+        ons-list
+          ons-list-item
+            label.left Project
+            label.center
+              ons-input#project-name(placeholder='Firebase project')
+          ons-list-item
+            label.left Path
+            label.center
+              ons-input#path-name(placeholder='Database path')
+          ons-list-item
+            label.left GPS
+            label#gps-status.right NULL
+          ons-list-item
+            label.left Motion
+            label#motion-status.right NULL
+        ons-button#start-button(modifier='large' onclick='fn.startAcq()') START
