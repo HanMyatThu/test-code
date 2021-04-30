@@ -1,24 +1,33 @@
-var updateFlag = false;
-var onlineFlag = false;
-var prevTick = 0;
-var gpsWatchId = 0;
-var posLatitude = [];
-var posLongitude = [];
-var motionX = [0];
-var motionY = [0];
-var motionZ = [0];
-var motionXAvg = [];
-var motionYAvg = [];
-var motionZAvg = [];
-var motionXStdev = [];
-var motionYStdev = [];
-var motionZStdev = [];
-var motionXMin = [];
-var motionYMin = [];
-var motionZMin = [];
-var motionXMax = [];
-var motionYMax = [];
-var motionZMax = [];
+let updateFlag = false;
+let onlineFlag = false;
+let prevTick = 0;
+let gpsWatchId = 0;
+let posLatitude = [];
+let posLongitude = [];
+let motionX = [];
+let motionY = [];
+let motionZ = [];
+let motionXAvg = [];
+let motionYAvg = [];
+let motionZAvg = [];
+let motionXStdev = [];
+let motionYStdev = [];
+let motionZStdev = [];
+let motionXMin = [];
+let motionYMin = [];
+let motionZMin = [];
+let motionXMax = [];
+let motionYMax = [];
+let motionZMax = [];
+let timestamp = 0;
+
+//velocity
+let initVelocity = 0; //u
+let finalvelocity = 0;
+let previousTime = null; //t0
+let latitude = 0;
+let longitude = 0;
+
 const arrAvg = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
 const arrStdev = (arr) => {
   const avg = arrAvg(arr);
@@ -78,40 +87,36 @@ function submitFirebase(t) {
   }
 }
 
-const handleMotionEvent = function (ev) {
-  console.log("here");
-  ev.acceleration.x === null
-    ? motionX.push(0)
-    : motionX.push(ev.acceleration.x);
-
-  ev.acceleration.y === null
-    ? motionY.push(0)
-    : motionY.push(ev.acceleration.y);
-
-  ev.acceleration.z === null
-    ? motionZ.push(0)
-    : motionZ.push(ev.acceleration.z);
-};
+function motionHandler(ev) {
+  motionX.push(ev.acceleration.x);
+  motionY.push(ev.acceleration.y);
+  motionZ.push(ev.acceleration.z);
+}
 
 window.fn = {};
 
 window.fn.startAcq = function () {
   if (!updateFlag) {
-    console.log("start updating");
     // GPS tracking
     gpsWatchId = navigator.geolocation.watchPosition(
       (pos) => {
-        // Motion trackinga
-        if (window.DeviceMotionEvent) {
-          console.log("yes");
-          window.addEventListener("devicemotion", handleMotionEvent, true);
-        }
+        timestamp = new Date(pos.timestamp);
 
         posLatitude.push(pos.coords.latitude);
         posLongitude.push(pos.coords.longitude);
+
         maxX = arrMax(motionX);
         maxY = arrMax(motionY);
         maxZ = arrMax(motionZ);
+
+        //calculating velocity
+        initVelocity = finalvelocity;
+        finalvelocity = calculateVelocity(
+          initVelocity,
+          motionX.length > 0 ? motionX[0] : 0,
+          previousTime,
+          timestamp
+        );
 
         if (maxX != NaN) {
           motionXAvg.push(arrAvg(motionX));
@@ -126,23 +131,22 @@ window.fn.startAcq = function () {
           motionXMax.push(arrMax(motionX));
           motionYMax.push(arrMax(motionY));
           motionZMax.push(arrMax(motionZ));
-          motionX = [0];
-          motionY = [0];
-          motionZ = [0];
+          motionX = [];
+          motionY = [];
+          motionZ = [];
         }
         document.getElementById("gps-status").innerHTML =
           pos.coords.latitude.toString() +
           "," +
           pos.coords.longitude.toString();
-
         if (maxX != NaN) {
           document.getElementById("motion-status").innerHTML =
             maxX.toFixed(2) + "," + maxY.toFixed(2) + "," + maxZ.toFixed(2);
         }
         // Sending data
         if (Date.now() > prevTick + 10000) {
-          const t = new Date(pos.timestamp);
-          submitFirebase(t);
+          previousTime = timestamp;
+          submitFirebase(timestamp);
           posLatitude = [];
           posLongitude = [];
           motionXAvg = [];
@@ -168,12 +172,23 @@ window.fn.startAcq = function () {
         timeout: 10000,
       })
     );
+
+    // Motion tracking
+    try {
+      DeviceMotionEvent.requestPermission().then((response) => {
+        if (response == "granted") {
+          window.addEventListener("devicemotion", motionHandler);
+        }
+      });
+    } catch {
+      window.addEventListener("devicemotion", motionHandler);
+    }
     document.getElementById("start-button").innerText = "STOP";
     updateFlag = true;
   } else {
     console.log("Stop updating");
     navigator.geolocation.clearWatch(gpsWatchId);
-    window.removeEventListener("devicemotion", handleMotionEvent);
+    window.removeEventListener("devicemotion", motionHandler);
     gpsWatchId = 0;
     document.getElementById("start-button").innerText = "START";
     updateFlag = false;
@@ -192,43 +207,18 @@ window.fn.toggleOnline = function () {
   }
 };
 
-//calculate the motion
-window.fn.calculateMotion = (t1, lat1, lng1, t2, lat2, lng2) => {
-  // From Caspar Kleijne's answer starts
-  /** Converts numeric degrees to radians */
-  if (typeof Number.prototype.toRad === "undefined") {
-    Number.prototype.toRad = function () {
-      return (this * Math.PI) / 180;
-    };
+//calculate the velocity vf = v0 + at;
+const calculateVelocity = (v0, accelation, initialtime, finaltime) => {
+  time =
+    new Date(finaltime).getTime() / 1000 -
+    new Date(initialtime).getTime() / 1000;
+
+  if (time < 0) {
+    return 0;
   }
-  // From Caspar Kleijne's answer ends
-  // From cletus' answer starts
-  var R = 6371; // km
-  var dLat = (lat2 - lat1).toRad();
-  var dLon = (lon2 - lon1).toRad();
-  var lat1 = lat1.toRad();
-  var lat2 = lat2.toRad();
-
-  var a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
-  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  var distance = R * c;
-  // From cletus' answer ends
-
-  return distance / t2 - t1;
+  if (time > 1000) {
+    return 0;
+  }
+  const vf = v0 + accelation * time;
+  return vf;
 };
-
-function firstGeolocationSuccess(position1) {
-  var t1 = Date.now();
-  navigator.geolocation.getCurrentPosition(function (position2) {
-    var speed = calculateMotion(
-      t1 / 1000,
-      position1.coords.latitude,
-      position1.coords.longitude,
-      Date.now() / 1000,
-      position2.coords.latitude,
-      position2.coords.longitude
-    );
-  });
-}
