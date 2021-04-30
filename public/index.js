@@ -78,7 +78,7 @@ function submitFirebase(t) {
   }
 }
 
-function handleMotionEvent(ev) {
+const handleMotionEvent = function (ev) {
   console.log("here");
   ev.acceleration.x === null
     ? motionX.push(0)
@@ -91,7 +91,7 @@ function handleMotionEvent(ev) {
   ev.acceleration.z === null
     ? motionZ.push(0)
     : motionZ.push(ev.acceleration.z);
-}
+};
 
 window.fn = {};
 
